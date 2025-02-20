@@ -1,0 +1,400 @@
+# Importing Required Libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore")
+from sklearn.preprocessing import LabelEncoder
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+from sklearn import svm
+from sklearn.metrics import accuracy_score, classification_report,  confusion_matrix, precision_score, recall_score,roc_auc_score, roc_curve, f1_score
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+dataframe=pd.read_csv("C:/Users/vanta/OneDrive - University of Hertfordshire/Masters Project/Diabetes Dataset/diabetes_prediction_dataset.csv")
+
+#Data Preprocessing and cleaning
+dataframe.head()
+Shape=dataframe.shape
+Null_values=dataframe.isnull().sum()
+duplicates=dataframe.duplicated().sum()
+dataframe=dataframe.drop_duplicates()
+shape_after_drop=dataframe.shape
+print("Shape of dataset before dropping duplicates is: ", Shape)
+print(f'Null values in each feature :\n{Null_values}')
+print("Sum of duplicates in dataset: ", duplicates)
+print("Shape of dataframe after dropping duplicates: ", shape_after_drop)
+dataframe.info()
+Mean=dataframe.mean(numeric_only=True)
+Median=dataframe.median(numeric_only=True)
+Std_dev=dataframe.std(numeric_only=True)
+Min_values=dataframe.min(numeric_only=True)
+Max_values=dataframe.max(numeric_only=True)
+print(f'Mean value for each feature :\n{Mean}')
+print(f'Median value for each feature :\n{Median}')
+print(f'Standarad Deviation value for each feature :\n{Std_dev}')
+print(f'Minimum value for each feature :\n{Min_values}')
+print(f'Maximum value for each feature :\n{Max_values}')
+
+#Plots for numerical and Categorical columns
+num_plots=dataframe.select_dtypes(include=['int64'])
+num_plots.hist(bins=20, figsize=(20,15))
+plt.show()
+cat_col = ['blood_glucose_level','smoking_history',]
+fig, axes = plt.subplots(nrows=1, ncols=len(cat_col), figsize=(14, 5))
+for i, col in enumerate(cat_col):
+sns.countplot(x=col, data=dataframe, ax=axes[i], palette='deep')
+axes[i].set_title(f'Count Plot of {col}')
+plt.tight_layout()
+plt.show()
+crosstab=pd.crosstab(dataframe['age'],dataframe['diabetes'])
+crosstab.plot(kind='area', alpha=0.7, colormap='viridis', stacked=True)
+plt.title('Age vs Diabetes')
+plt.xlabel('Age')
+plt.ylabel('Count')
+plt.show()
+
+# Encoding Categorical Columns
+cat_cols=dataframe.select_dtypes(include=['object','category']).columns
+label_encoders={}
+for col in cat_cols:
+le=LabelEncoder()
+dataframe[col]=le.fit_transform(dataframe[col])
+label_encoders[col]=le
+dataframe.info()
+
+# Correlation Heatmap
+correlation_matrix=dataframe.corr()
+plt.figure(figsize=(10,8))
+sns.heatmap(correlation_matrix, annot=True, cmap='plasma', linewidths=0.5)
+plt.title('Correlation Matrix Heatmap')
+plt.show()
+
+# Class Imbalance
+dataframe['diabetes'].value_counts()
+x=dataframe.drop(columns=['diabetes'])
+y=dataframe['diabetes']
+smote=SMOTE(random_state=42)
+x_bal,y_bal=smote.fit_resample(x,y)
+dataframe_bal = pd.concat([pd.DataFrame(x_bal, columns=x.columns), pd.DataFrame(y_bal, columns=['diabetes'])], axis=1)
+print(dataframe_bal['diabetes'].value_counts())
+
+# Splitting the data
+x_train,x_test,y_train,y_test=train_test_split(x_bal,y_bal, test_size=0.2, random_state=42)
+print(f'Training set shape: {x_train.shape},{y_train.shape}')
+print(f'Testing set shape: {x_test.shape},{y_test.shape}')
+col=['gender', 'age', 'hypertension', 'heart_disease', 'smoking_history', 'bmi', 'HbA1c_level', 'blood_glucose_level']
+q1=x_train[col].quantile(0.25)
+q3=x_train[col].quantile(0.75)
+IQR=q3-q1
+threshold=1.5
+outlinermask=((x_train[col]<(q1-threshold*IQR))|(x_train[col]>(q3+threshold*IQR))).any(axis=1)
+x_trainclean=x_train[~outlinermask]
+y_trainclean=y_train[~outlinermask]
+rows_removed=len(x_train)-len(x_trainclean)
+print(f'Rows removed with outliners:{rows_removed}')
+
+# Applying Machine Learning models
+rfclassifier=RandomForestClassifier(random_state=42)
+rfclassifier.fit(x_trainclean,y_trainclean)
+prediction=rfclassifier.predict(x_test)
+Accuracy=accuracy_score(y_test,prediction)
+Report=classification_report(y_test,prediction)
+cm=confusion_matrix(y_test,prediction)
+sensitivity=recall_score(y_test,prediction)
+f1score=f1_score(y_test,prediction)
+roc_auc=roc_auc_score(y_test,prediction)
+# Calculating Specificity
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+# Calculating Precision
+precision = TP / (TP + FP)
+print(f'Accuracy for RandomForest Classifier is: {Accuracy}')
+print(f'Precision for RandomForest  Classifier is: {precision}')
+print(f'Sensitivity for RandomForest  Classifier is: {sensitivity:.2f}')
+print(f'Specificity for RandomForest  Classifier is: {specificity:.2f}')
+print(f'F1 Score for RandomForest  Classifier is: {f1score:.2f}')
+print(f'Confusion Matrix for RandomForest  Classifier is:\n {cm}')
+print(f'ROC-AUC Score for RandomForest  Classifier is: {roc_auc:.2f}')
+print(f'Classification Report for RandomForest  Classifier is:\n{Report}')
+
+logisticregression=LogisticRegression(max_iter=1000, random_state=42)
+logisticregression.fit(x_trainclean,y_trainclean)
+prediction = logisticregression.predict(x_test)
+Accuracy=accuracy_score(y_test,prediction)
+Report=classification_report(y_test,prediction)
+cm=confusion_matrix(y_test,prediction)
+sensitivity=recall_score(y_test,prediction)
+f1score=f1_score(y_test,prediction)
+roc_auc=roc_auc_score(y_test,prediction)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for logisticRegression Classifier is: {Accuracy}')
+print(f'Precision for logisticRegression  Classifier is: {precision}')
+print(f'Sensitivity for logisticRegression  Classifier is: {sensitivity:.2f}')
+print(f'Specificity for logisticRegression  Classifier is: {specificity:.2f}')
+print(f'F1 Score for logisticRegression  Classifier is: {f1score:.2f}')
+print(f'Confusion Matrix for logisticRegression  Classifier is:\n {cm}')
+print(f'ROC-AUC Score for logisticRegression  Classifier is: {roc_auc:.2f}')
+print(f'Classification Report for logisticRegression Classifier is: \n{Report}')
+
+
+decisiontreeclassifier=DecisionTreeClassifier(random_state=42)
+decisiontreeclassifier.fit(x_trainclean,y_trainclean)
+prediction = decisiontreeclassifier.predict(x_test)
+Accuracy=accuracy_score(y_test,prediction)
+Report=classification_report(y_test,prediction)
+cm=confusion_matrix(y_test,prediction)
+sensitivity=recall_score(y_test,prediction)
+f1score=f1_score(y_test,prediction)
+roc_auc=roc_auc_score(y_test,prediction)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for Decision Tree Classifier is: {Accuracy}')
+print(f'Precision for Decision Tree  Classifier is: {precision}')
+print(f'Sensitivity for Decision Tree  Classifier is: {sensitivity:.2f}')
+print(f'Specificity for Decision Tree  Classifier is: {specificity:.2f}')
+print(f'F1 Score for Decision Tree  Classifier is: {f1score:.2f}')
+print(f'Confusion Matrix for Decision Tree  Classifier is: \n{cm}')
+print(f'ROC-AUC Score for Decision Tree  Classifier is: {roc_auc:.2f}')
+print(f'Classification Report for Decision Tree Classifier is:\n {Report}')
+
+GBclassifier=GradientBoostingClassifier(random_state=42)
+GBclassifier.fit(x_trainclean,y_trainclean)
+prediction = GBclassifier.predict(x_test)
+Accuracy=accuracy_score(y_test,prediction)
+Report=classification_report(y_test,prediction)
+cm=confusion_matrix(y_test,prediction)
+sensitivity=recall_score(y_test,prediction)
+f1score=f1_score(y_test,prediction)
+roc_auc=roc_auc_score(y_test,prediction)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for Gradient Boost classifier is: {Accuracy}')
+print(f'Precision for Gradient Boost classifier is: {precision}')
+print(f'Sensitivity for Gradient Boost classifier is: {sensitivity:.2f}')
+print(f'Specificity for Gradient Boost classifier is: {specificity:.2f}')
+print(f'F1 Score for Gradient Boost classifier is: {f1score:.2f}')
+print(f'Confusion Matrix for Gradient Boost classifier is:\n {cm}')
+print(f'ROC-AUC Score for Gradient Boost classifier is: {roc_auc:.2f}')
+print(f'Classification Report for Gradient Boost classifier is:\n {Report}')
+
+gaussianclassifier=GaussianNB()
+gaussianclassifier.fit(x_trainclean,y_trainclean)
+prediction = gaussianclassifier.predict(x_test)
+Accuracy=accuracy_score(y_test,prediction)
+Report=classification_report(y_test,prediction)
+cm=confusion_matrix(y_test,prediction)
+sensitivity=recall_score(y_test,prediction)
+f1score=f1_score(y_test,prediction)
+roc_auc=roc_auc_score(y_test,prediction)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for Gaussian Naive Bayes classifier is: {Accuracy}')
+print(f'Precision for Gaussian Naive Bayes classifier is: {precision}')
+print(f'Sensitivity for Gaussian Naive Bayes classifier is: {sensitivity:.2f}')
+print(f'Specificity for Gaussian Naive Bayes classifier is: {specificity:.2f}')
+print(f'F1 Score for Gaussian Naive Bayes classifier is: {f1score:.2f}')
+print(f'Confusion Matrix for Gaussian Naive Bayes classifier is:\n {cm}')
+print(f'ROC-AUC Score for Gaussian Naive Bayes classifier is: {roc_auc:.2f}')
+print(f'Classification Report for Gaussian Naive Bayes classifier is:\n {Report}')
+
+KNNclassifier = KNeighborsClassifier(n_neighbors=5)
+KNNclassifier.fit(x_trainclean,y_trainclean)
+prediction = KNNclassifier.predict(x_test)
+Accuracy=accuracy_score(y_test,prediction)
+Report=classification_report(y_test,prediction)
+cm=confusion_matrix(y_test,prediction)
+sensitivity=recall_score(y_test,prediction)
+f1score=f1_score(y_test,prediction)
+roc_auc=roc_auc_score(y_test,prediction)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for KNN classifier is: {Accuracy}')
+print(f'Precision for KNN classifier is: {precision}')
+print(f'Sensitivity for KNN classifier is: {sensitivity:.2f}')
+print(f'Specificity for KNN classifier is: {specificity:.2f}')
+print(f'F1 Score for KNN classifier is: {f1score:.2f}')
+print(f'Confusion Matrix for KNN classifier is:\n {cm}')
+print(f'ROC-AUC Score for KNN classifier is: {roc_auc:.2f}')
+print(f'Classification Report for KNN classifier is:\n {Report}')
+
+rf_model = RandomForestClassifier(random_state=42)
+gb_model = GradientBoostingClassifier(random_state=42)
+lr_model = LogisticRegression(random_state=42)
+dt_model = DecisionTreeClassifier(random_state=42)
+gc_model = GaussianNB()
+KNN_model = KNeighborsClassifier(n_neighbors=5)
+rf_model.fit(x_trainclean,y_trainclean)
+gb_model.fit(x_trainclean,y_trainclean)
+lr_model.fit(x_trainclean,y_trainclean)
+dt_model.fit(x_trainclean,y_trainclean)
+gc_model.fit(x_trainclean,y_trainclean)
+KNN_model.fit(x_trainclean,y_trainclean)
+rf_pred = rf_model.predict(x_test)
+gb_pred = gb_model.predict(x_test)
+lr_pred = lr_model.predict(x_test)
+dt_pred = dt_model.predict(x_test)
+gc_pred = gc_model.predict(x_test)
+KNN_pred = KNN_model.predict(x_test)
+predictions = pd.DataFrame({'RandomForest': rf_pred, 'GradientBoosting': gb_pred, 'LogisticRegression': lr_pred, 'DecisionTreeClassifier': dt_pred, 'GaussianNB': gc_pred, 'KNeighboursClassifier':KNN_pred})
+meta_model = RandomForestClassifier(random_state=42)
+meta_model.fit(predictions, y_test)
+ensemble_pred = meta_model.predict(predictions)
+Accuracy=accuracy_score(y_test,ensemble_pred)
+Report=classification_report(y_test,ensemble_pred)
+cm=confusion_matrix(y_test,ensemble_pred)
+sensitivity=recall_score(y_test,ensemble_pred)
+f1score=f1_score(y_test,ensemble_pred)
+roc_auc=roc_auc_score(y_test,ensemble_pred)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for Ensemble Model is: {Accuracy}')
+print(f'Precision for Ensemble Model is: {precision}')
+print(f'Sensitivity for Ensemble Model is: {sensitivity:.2f}')
+print(f'Specificity for Ensemble Model is: {specificity:.2f}')
+print(f'Confusion Matrix for Ensemble Model is: \n{cm}')
+print(f'ROC-AUC Score for Ensemble Model is: {roc_auc:.2f}')
+print(f'F1 Score for Ensemble Model is: {f1score:.2f}')
+print(f'Classification Report for Ensemble Model is:\n {Report}')
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, recall_score, f1_score, roc_auc_score
+rf_model = RandomForestClassifier(random_state=42)
+gb_model = GradientBoostingClassifier(random_state=42)
+lr_model = LogisticRegression(random_state=42, max_iter=1000)
+dt_model = DecisionTreeClassifier(random_state=42)
+gc_model = GaussianNB()
+knn_model = KNeighborsClassifier()
+rf_param_grid = {'n_estimators': [100, 200], 'max_depth': [None, 10, 20], 'min_samples_split': [2, 5]}
+gb_param_grid = {'n_estimators': [100, 200], 'learning_rate': [0.01, 0.1], 'max_depth': [3, 5, 7]}
+lr_param_grid = {'C': [0.01, 0.1, 1, 10], 'penalty': ['l2']}
+dt_param_grid = {'max_depth': [None, 10, 20], 'min_samples_split': [2, 5, 10]}
+knn_param_grid = {'n_neighbors': [3, 5, 7], 'weights': ['uniform', 'distance']}
+rf_grid_search = GridSearchCV(rf_model, rf_param_grid, cv=3, scoring='accuracy')
+gb_grid_search = GridSearchCV(gb_model, gb_param_grid, cv=3, scoring='accuracy')
+lr_grid_search = GridSearchCV(lr_model, lr_param_grid, cv=3, scoring='accuracy')
+dt_grid_search = GridSearchCV(dt_model, dt_param_grid, cv=3, scoring='accuracy')
+knn_grid_search = GridSearchCV(knn_model, knn_param_grid, cv=3, scoring='accuracy')
+rf_grid_search.fit(x_trainclean, y_trainclean)
+gb_grid_search.fit(x_trainclean, y_trainclean)
+lr_grid_search.fit(x_trainclean, y_trainclean)
+dt_grid_search.fit(x_trainclean, y_trainclean)
+knn_grid_search.fit(x_trainclean, y_trainclean)
+# Get the best models
+rf_best_model = rf_grid_search.best_estimator_
+gb_best_model = gb_grid_search.best_estimator_
+lr_best_model = lr_grid_search.best_estimator_
+dt_best_model = dt_grid_search.best_estimator_
+knn_best_model = knn_grid_search.best_estimator_
+gc_model.fit(x_trainclean, y_trainclean)
+rf_pred = rf_best_model.predict(x_test)
+gb_pred = gb_best_model.predict(x_test)
+lr_pred = lr_best_model.predict(x_test)
+dt_pred = dt_best_model.predict(x_test)
+gc_pred = gc_model.predict(x_test)
+knn_pred = knn_best_model.predict(x_test)
+predictions = pd.DataFrame({
+'RandomForest': rf_pred,
+'GradientBoosting': gb_pred,
+'LogisticRegression': lr_pred,
+'DecisionTreeClassifier': dt_pred,
+'GaussianNB': gc_pred,
+'KNeighboursClassifier': knn_pred
+})
+meta_model = RandomForestClassifier(random_state=42)
+meta_model.fit(predictions, y_test)
+ensemble_pred = meta_model.predict(predictions)
+Accuracy = accuracy_score(y_test, ensemble_pred)
+Report = classification_report(y_test, ensemble_pred)
+cm = confusion_matrix(y_test, ensemble_pred)
+sensitivity = recall_score(y_test, ensemble_pred)
+f1score = f1_score(y_test, ensemble_pred)
+roc_auc = roc_auc_score(y_test, ensemble_pred)
+TN = cm[0, 0]
+FP = cm[0, 1]
+FN = cm[1, 0]
+TP = cm[1, 1]
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+print(f'Accuracy for Ensemble Model with GridSearch CV is: {Accuracy}')
+print(f'Precision for Ensemble Model with GridSearch CV is: {precision}')
+print(f'Sensitivity for Ensemble Model with GridSearch CV is: {sensitivity:.2f}')
+print(f'Specificity for Ensemble Model with GridSearch CV is: {specificity:.2f}')
+print(f'F1 Score for Ensemble Model with GridSearch CV is: {f1score:.2f}')
+print(f'Confusion Matrix for Ensemble Model with GridSearch CV is:\n {cm}')
+print(f'ROC-AUC Score for Ensemble Model with GridSearch CV is: {roc_auc:.2f}')
+print(f'Classification Report for Ensemble Model with GridSearch CV is: \n{Report}')
+
+# ROC-AUC Curve for all models
+models = {
+'Random Forest': RandomForestClassifier(random_state=42),
+'Gradient Boosting': GradientBoostingClassifier(random_state=42),
+'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+'Decision Tree': DecisionTreeClassifier(random_state=42),
+'Gaussian Naive Bayes': GaussianNB(),
+'KNN': KNeighborsClassifier(n_neighbors=5)
+}
+
+pred_probs = {}
+for name, model in models.items():
+model.fit(x_trainclean, y_trainclean)
+pred_probs[name] = model.predict_proba(x_test)[:, 1]
+
+predictions = pd.DataFrame(pred_probs)
+meta_model = RandomForestClassifier(random_state=42)
+meta_model.fit(predictions, y_test)
+ensemble_pred_probs = meta_model.predict_proba(predictions)[:, 1]
+pred_probs['Ensemble'] = ensemble_pred_probs
+plt.figure(figsize=(10, 8))
+for name, pred_prob in pred_probs.items():
+fpr, tpr, _ = roc_curve(y_test, pred_prob)
+roc_auc = roc_auc_score(y_test, pred_prob)
+plt.plot(fpr, tpr, label=f'{name} (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc='lower right')
+plt.show()
